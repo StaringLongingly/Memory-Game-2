@@ -1,20 +1,10 @@
 package com.raymarchers;
 
-import org.lwjgl.*;
-import org.lwjgl.glfw.*;
-import org.lwjgl.opengl.*;
-import org.lwjgl.system.*;
-
-import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL40.*;
-import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.BufferUtils;
-
-import org.joml.Vector2f;
-import org.joml.Vector3f;
 
 import java.nio.*;
 import java.util.*;
@@ -51,9 +41,13 @@ class Slot {
 // Handles initialization and gameplay
 class GameManager {
     public Slot[][] slots;
+	public int gameSizeX;
+	public int gameSizeY;
 
-    public GameManager(int gameSizeX, int gameSizeY, int shuffleCount, boolean reveal, boolean consolePrint) {
+    public GameManager(int gameSizeX, int gameSizeY, int shuffleCount, boolean reveal) {
         System.out.println("Creating a New Game!");
+		this.gameSizeX = gameSizeX;
+		this.gameSizeY = gameSizeY;
         slots = new Slot[gameSizeY][gameSizeX];
 
         int totalSlots = gameSizeX * gameSizeY;
@@ -190,10 +184,21 @@ class GameManager {
             System.out.println();
         }
     }
+
+	public int[] getCharsAsInts() {
+		int[] result = new int[gameSizeX * gameSizeY];
+		int k = 0;
+		for (int i = 0; i < gameSizeY; i++) {
+			for (int j = 0; j < gameSizeX; j++) {
+				result[k] = (int)slots[i][j].symbol;
+				k++;
+			}
+		}
+		return result;
+	}
 }
 
 class Shader {
-	
 	private String vertexFile = "vertex.glsl";
 	private String fragmentFile = "fragment.glsl";
 	
@@ -278,14 +283,36 @@ class Shader {
 		if (location != -1) {
 			glUniform1f(location, value);
 		} else {
-			System.out.println("Uniform " + name + " not found in shader!");
+			//System.out.println("Uniform " + name + " not found in shader!");
 		}
 	}
 
+    /**
+     * Sets a float uniform value in the shader.
+     * 
+     * @param name  The uniform variable name in the shader
+     * @param value The int value to pass
+     */
+	public void setUniform1i(String name, int value) {
+		int location = glGetUniformLocation(programID, name);
+		if (location != -1) {
+			glUniform1f(location, value);
+		} else {
+			//System.out.println("Uniform " + name + " not found in shader!");
+		}
+	}
+
+	public void passChars(int[] chars) {
+		int location = glGetUniformLocation(programID, "chars");
+		if (location != -1) {
+			glUniform1iv(location, chars);
+		} else {
+			//System.out.println("Uniform chars not found in shader!");
+		}
+	}
 }
 
 class Model {
-	
 	private float[] vertexArray;
 	private int[] indices;
 	
@@ -356,7 +383,6 @@ class Model {
 }
 
 class Render {
-	
 	public static void render(int vaoID, Model triangle) {
 		glBindVertexArray(vaoID);
 		glBindBuffer(GL_ARRAY_BUFFER, triangle.getVboID());
@@ -379,11 +405,10 @@ class Render {
 }
 
 class Window {
-	
-	private static Window instance = null;
+	public GameManager gameManager;
 	
 	private int width = 800;
-	private int height = 600;
+	private int height = 800;
 	
 	private int vaoID;
 	
@@ -393,18 +418,13 @@ class Window {
 	
 	private long window;
 	
-	private Window() {}
-	
-	public static Window get() {
-		if (instance == null) {
-			instance = new Window();
-		}
-		
-		return instance;
+	public Window() {
+    	gameManager = new GameManager(4, 4, 10, false);
 	}
 	
 	public void run() {
 		init();
+		gameManager.printSlotsConsole();
 		loop();
 	}
 	
@@ -456,6 +476,19 @@ class Window {
 			
 			// Pass the time uniform to the shader
 			shader.setUniform1f("time", time);
+
+			shader.setUniform1f("time", time);
+			shader.setUniform1i("arrayX", gameManager.gameSizeX);
+			shader.setUniform1i("arrayY", gameManager.gameSizeY);
+			int[] ints = new int[gameManager.gameSizeX * gameManager.gameSizeY];
+			ints = gameManager.getCharsAsInts();
+			/*
+			for (int i = 0; i < ints.length; i++) {
+				System.out.print(ints[i] + " ");
+			}
+			System.out.println();
+*/
+			shader.passChars(ints);
 			
 			// Render two triangles
 			Render.render(vaoID, triangle1);
@@ -481,10 +514,7 @@ class Window {
 // Responsible for starting the game
 public class Main {
     public static void main(String args[]) {
-        // If you want to run the text-based game:
-        // new GameManager(4, 5, 10, false, false).gameplayLoop();
-        
-        // Otherwise, run the windowed application with the shader:
-        Window.get().run();
+		Window window = new Window();
+		window.run();
     }
 }

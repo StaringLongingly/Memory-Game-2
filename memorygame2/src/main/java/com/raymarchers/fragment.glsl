@@ -3,6 +3,9 @@
 in vec2 fragCord;
 out vec4 color;
 uniform float time;
+uniform int[100] chars;
+uniform int arrayX;
+uniform int arrayY;
 
 // Define a struct to hold surface information
 struct SurfaceInfo {
@@ -24,6 +27,51 @@ float sdfCube(vec3 p, vec3 b) {
     return min(max(d.x, max(d.y, d.z)), 0.0) + length(max(d, 0.0));
 }
 
+float sdfPyramid( in vec3 p, in float h )
+{
+    float m2 = h*h + 0.25;
+    
+    // symmetry
+    p.xz = abs(p.xz);
+    p.xz = (p.z>p.x) ? p.zx : p.xz;
+    p.xz -= 0.5;
+	
+    // project into face plane (2D)
+    vec3 q = vec3( p.z, h*p.y - 0.5*p.x, h*p.x + 0.5*p.y);
+   
+    float s = max(-q.x,0.0);
+    float t = clamp( (q.y-0.5*p.z)/(m2+0.25), 0.0, 1.0 );
+    
+    float a = m2*(q.x+s)*(q.x+s) + q.y*q.y;
+	float b = m2*(q.x+0.5*t)*(q.x+0.5*t) + (q.y-m2*t)*(q.y-m2*t);
+    
+    float d2 = min(q.y,-q.x*m2-q.y*0.5) > 0.0 ? 0.0 : min(a,b);
+    
+    // recover 3D and scale, and add sign
+    return sqrt( (d2+q.z*q.z)/m2 ) * sign(max(q.z,-p.y));;
+}
+
+float sdfTorus( vec3 p, vec2 t )
+{
+    return length( vec2(length(p.xz)-t.x,p.y) )-t.y;
+}
+
+float randomSDF(vec3 p, float seed) {
+    const float size = .3;
+    const int SDFcount = 3;
+    seed *= float(SDFcount);
+    seed = floor(seed);
+
+    if (seed == 0) { return sdfCube(p, vec3(size)); }
+    if (seed == 1) {
+        p /= (size * 2.);
+        vec3 q = p;
+        q.y *= -1.;
+        return min(sdfPyramid(p, .9), sdfPyramid(q, .9)) * (size * 2.);
+    } 
+    if (seed == 2) { return sdfTorus(p, vec2(size, size * .6)); } 
+}
+
 mat3 rotationMatrix(vec3 axis, float angle) {
     axis = normalize(axis);
     float s = sin(angle);
@@ -42,6 +90,39 @@ float smoothmin(float d1, float d2, float k) {
     return mix(d2, d1, h) - k * h * (1.0 - h);
 }
 
+// Random number generator
+float random(vec2 co) {
+    highp float a = 12.9898;
+    highp float b = 78.233;
+    highp float c = 43758.5453;
+    highp float dt = dot(co.xy, vec2(a, b));
+    highp float sn = mod(dt, 3.14);
+    return fract(sin(sn) * c);
+}
+vec3 anyOrthogonalVector(vec3 n) {
+    // Find a vector that is orthogonal to n
+    if (abs(n.x) > abs(n.z)) {
+        return vec3(-n.y, n.x, 0.0);
+    } else {
+        return vec3(0.0, -n.z, n.y);
+    }
+}
+
+// Function to sample a random direction in a hemisphere oriented around a normal vector
+vec3 sampleHemisphereCosine(vec3 normal, vec2 rand) {
+    // Convert random numbers to spherical coordinates
+    float phi = 2.0 * 3.14159265 * rand.x;
+    float cosTheta = sqrt(1.0 - rand.y);
+    float sinTheta = sqrt(rand.y);
+
+    // Compute the direction in tangent space
+    vec3 tangent = normalize(anyOrthogonalVector(normal));
+    vec3 bitangent = cross(normal, tangent);
+    vec3 direction = sinTheta * cos(phi) * tangent + sinTheta * sin(phi) * bitangent + cosTheta * normal;
+
+    return normalize(direction);
+}
+
 // Helper function to smoothly combine two SurfaceInfos
 SurfaceInfo smoothMinSurface(SurfaceInfo a, SurfaceInfo b, float k) {
     float h = clamp(0.5 + 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
@@ -52,80 +133,46 @@ SurfaceInfo smoothMinSurface(SurfaceInfo a, SurfaceInfo b, float k) {
     return result;
 }
 
+vec3 hsv2rgb(vec3 c)
+{
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
 SurfaceInfo map(vec3 p, int bouncedTimes) {
-    float k = .7;
-    if (bouncedTimes == 0) {
-        k = .7;
-    }
+    float smoothing = 0.1;
 
     // Initialize the result with the plane
     SurfaceInfo result;
-    float planeY = -1.0;
-    result.distance = sdfPlane(p, planeY);
-    result.color = vec3(0.6, 0.6, 0.6);
-    result.reflectivity = .8;
+    vec3 cubePosition = vec3(0., 0., 3. + abs(sin(time / 10.)));
+    vec3 cubeSize = vec3(5., 5., .5);
+    result.distance = sdfCube(p - cubePosition, cubeSize);
+    result.color = vec3(0.0314, 0.0314, 0.0314);
+    result.reflectivity = .9;
 
-    const int NUM_SPHERES = 3;
-    vec3 spherePositions[NUM_SPHERES];
-    float sphereSizes[NUM_SPHERES];
-    vec3 sphereColors[NUM_SPHERES];
-    float sphereReflectivities[NUM_SPHERES];
+    int k = 0;
+    const int randomnessPasses = 3;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            SurfaceInfo newShape;
+            newShape.reflectivity = .3;
+            float x = float(j) - float(4) / 2.0 + 0.5;
+            float y = float(i) - float(4) / 2.0 + 0.5;
+            vec3 position = vec3(vec2(x, y) * 1.2 , 0.);
 
-    // Define spheres
-    spherePositions[0] = vec3(1.0, 0.0, 0.5);
-    sphereSizes[0] = 0.5;
-    sphereColors[0] = vec3(1.0, 0.0, 0.0);
-    sphereReflectivities[0] = 0.25;
+            float r = random(vec2(chars[k]));
+            vec3 q = p;
+            q -= position;
+            q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
 
-    spherePositions[1] = vec3(-1.0, 0.0, 1.0);
-    sphereSizes[1] = 0.5;
-    sphereColors[1] = vec3(0.0, 1.0, 0.0);
-    sphereReflectivities[1] = 0.25;
+            newShape.distance = randomSDF(q, r);
+            newShape.color = hsv2rgb(vec3(r, .8, .8));
 
-    spherePositions[2] = vec3(1.0, 0.0, 1.5);
-    sphereSizes[2] = 0.5;
-    sphereColors[2] = vec3(0.5, 0.5, 0.8);
-    sphereReflectivities[2] = 0.8;
-
-    // Loop through spheres and combine using smoothmin
-    for (int i = 0; i < NUM_SPHERES; i++) {
-        vec3 spherePos = spherePositions[i];
-        spherePos.x += sin(time + float(i)); // Animate sphere positions
-        float sdf = sdfSphere(p - spherePos, sphereSizes[i]);
-
-        SurfaceInfo sphereInfo;
-        sphereInfo.distance = sdf;
-        sphereInfo.color = sphereColors[i];
-        sphereInfo.reflectivity = sphereReflectivities[i];
-
-        result = smoothMinSurface(result, sphereInfo, k);
+            result = smoothMinSurface(result, newShape, smoothing);
+            k++;
+        }
     }
-
-    // Define cube
-    vec3 cubeSize = vec3(5.0, 1.0, 1.0);
-    vec3 q1 = p + vec3(0.0, -0.5, -4.0);
-    q1 *= rotationMatrix(vec3(1.0, 0.0, 0.0), time / 2.0);
-    float cubeDist = sdfCube(q1, cubeSize);
-
-    SurfaceInfo cubeInfo;
-    cubeInfo.distance = cubeDist;
-    cubeInfo.color = vec3(0.0, 0.0, 1.0);
-    cubeInfo.reflectivity = 0.7;
-    
-    // Second cube
-    vec3 cubeSize2 = vec3(100., .5, 100.);
-    vec3 q2 = p + vec3(0.0, -3., 4.);
-
-    float cubeDist2 = sdfCube(q2, cubeSize2);
-
-    SurfaceInfo cubeInfo2;
-    cubeInfo2.distance = cubeDist2;
-    cubeInfo2.color = vec3(1.000,0.667,0.667);
-    cubeInfo2.reflectivity = .95;
-
-    // Combine cube with result
-    result = smoothMinSurface(result, cubeInfo, 0.);
-
     return result;
 }
 
@@ -148,8 +195,8 @@ void main() {
 
     int i;
 
-    const int bounceTimes = 32;
-    const int maxMarches = 80;
+    const int bounceTimes = 3;
+    const int maxMarches = 160;
 
     // Bounce Loop
     for (int j = 0; j < bounceTimes; j++) {

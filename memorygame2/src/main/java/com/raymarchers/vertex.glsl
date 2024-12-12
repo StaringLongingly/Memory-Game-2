@@ -2,7 +2,6 @@
 
 layout (location = 0) in vec3 position;
 out vec2 fragCord;
-uniform float time;
 
 void main() {
     // Do not delete everything breaks
