@@ -4,8 +4,8 @@ in vec2 fragCord;
 out vec4 color;
 uniform float time;
 uniform int[100] chars;
-uniform int arrayX;
-uniform int arrayY;
+uniform float arrayX;
+uniform float arrayY;
 
 // Define a struct to hold surface information
 struct SurfaceInfo {
@@ -56,9 +56,24 @@ float sdfTorus( vec3 p, vec2 t )
     return length( vec2(length(p.xz)-t.x,p.y) )-t.y;
 }
 
+float sdfHorseshoe( in vec3 p, in vec2 c, in float r, in float le, vec2 w )
+{
+    p.x = abs(p.x);
+    float l = length(p.xy);
+    p.xy = mat2(-c.x, c.y, 
+              c.y, c.x)*p.xy;
+    p.xy = vec2((p.y>0.0 || p.x>0.0)?p.x:l*sign(-c.x),
+                (p.x>0.0)?p.y:l );
+    p.xy = vec2(p.x,abs(p.y-r))-vec2(le,0.0);
+    
+    vec2 q = vec2(length(max(p.xy,0.0)) + min(0.0,max(p.x,p.y)),p.z);
+    vec2 d = abs(q) - w;
+    return min(max(d.x,d.y),0.0) + length(max(d,0.0));
+}
+
 float randomSDF(vec3 p, float seed) {
     const float size = .3;
-    const int SDFcount = 3;
+    const int SDFcount = 4;
     seed *= float(SDFcount);
     seed = floor(seed);
 
@@ -70,6 +85,7 @@ float randomSDF(vec3 p, float seed) {
         return min(sdfPyramid(p, .9), sdfPyramid(q, .9)) * (size * 2.);
     } 
     if (seed == 2) { return sdfTorus(p, vec2(size, size * .6)); } 
+    if (seed == 3) { return sdfHorseshoe(p, vec2(cos(1.3),sin(1.3)), 0.35, 0.3, vec2(0.1,0.08) ); }
 }
 
 mat3 rotationMatrix(vec3 axis, float angle) {
@@ -125,8 +141,18 @@ vec3 sampleHemisphereCosine(vec3 normal, vec2 rand) {
 
 // Helper function to smoothly combine two SurfaceInfos
 SurfaceInfo smoothMinSurface(SurfaceInfo a, SurfaceInfo b, float k) {
-    float h = clamp(0.5 + 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
     SurfaceInfo result;
+    if (k == 0.) {
+        result.distance = min(a.distance, b.distance);
+        result.color = b.color;
+        result.reflectivity = b.reflectivity;
+        if (a.distance == result.distance) {
+            result.color = a.color;
+            result.reflectivity = a.reflectivity;
+        }
+        return result;
+    }
+    float h = clamp(0.5 + 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
     result.distance = mix(b.distance, a.distance, h) - k * h * (1.0 - h);
     result.color = mix(b.color, a.color, h);
     result.reflectivity = mix(b.reflectivity, a.reflectivity, h);
@@ -141,33 +167,37 @@ vec3 hsv2rgb(vec3 c)
 }
 
 SurfaceInfo map(vec3 p, int bouncedTimes) {
-    float smoothing = 0.1;
+    float smoothing = 0.; 
 
     // Initialize the result with the plane
     SurfaceInfo result;
-    vec3 cubePosition = vec3(0., 0., 3. + abs(sin(time / 10.)));
+    vec3 cubePosition = vec3(0., 0., 1.2);
     vec3 cubeSize = vec3(5., 5., .5);
     result.distance = sdfCube(p - cubePosition, cubeSize);
     result.color = vec3(0.0314, 0.0314, 0.0314);
-    result.reflectivity = .9;
+    result.reflectivity = .1;
 
     int k = 0;
     const int randomnessPasses = 3;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
+    float maxI = arrayY;
+    float maxJ = arrayX;
+    for (int i = 0; i < maxI; i++) {
+        for (int j = 0; j < maxJ; j++) {
             SurfaceInfo newShape;
             newShape.reflectivity = .3;
-            float x = float(j) - float(4) / 2.0 + 0.5;
-            float y = float(i) - float(4) / 2.0 + 0.5;
-            vec3 position = vec3(vec2(x, y) * 1.2 , 0.);
+            float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
+            float y = (float(i) / (maxI - 1)) * 2. - 1.; 
+            vec3 position = vec3(vec2(x, -y) * 2., 0.);
 
             float r = random(vec2(chars[k]));
             vec3 q = p;
             q -= position;
             q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
 
-            newShape.distance = randomSDF(q, r);
-            newShape.color = hsv2rgb(vec3(r, .8, .8));
+            float size = max(arrayX, arrayY) / 4.;
+            newShape.distance = randomSDF(q * size , r) / size;
+            vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
+            newShape.color = newColor; 
 
             result = smoothMinSurface(result, newShape, smoothing);
             k++;
@@ -187,6 +217,13 @@ vec3 computeNormal(vec3 p) {
 
 void main() {
     vec2 uv = fragCord;
+    const int scale = 200;
+    bool vertical = fract(uv.y * float(scale)) > .5;
+    bool horizontal = fract(uv.x * float(scale)) > .5;
+    if (vertical) {
+        color = vec4(vec3(.1) * abs(sin(time)), 1.);
+        return;
+    }
 
     vec3 ro = vec3(0.0, 0.0, -3.0);
     vec3 rd = normalize(vec3(uv, 1.0));
@@ -195,8 +232,8 @@ void main() {
 
     int i;
 
-    const int bounceTimes = 3;
-    const int maxMarches = 160;
+    const int bounceTimes = 1;
+    const int maxMarches = 80;
 
     // Bounce Loop
     for (int j = 0; j < bounceTimes; j++) {

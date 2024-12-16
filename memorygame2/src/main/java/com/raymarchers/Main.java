@@ -13,11 +13,11 @@ import java.io.FileNotFoundException;
 
 // A Slot is a letter with some extra info
 class Slot {
-    public char symbol;
+    public int symbol;
     public boolean peek;
     public boolean revealed;
 
-    public Slot(char symbol) {
+    public Slot(int symbol) {
         this.symbol = symbol;
         this.peek = false;
         this.revealed = false;
@@ -53,13 +53,17 @@ class GameManager {
         int totalSlots = gameSizeX * gameSizeY;
         int pairCount = totalSlots / 2;
 
-        // Generate pairs of random characters
-        List<Character> charList = new ArrayList<Character>();
+        List<Integer> charList = new ArrayList<Integer>();
         Random random = new Random();
         for (int i = 0; i < pairCount; i++) {
-            char randomChar = (char) (random.nextInt(26) + 'A');
-            charList.add(randomChar);
-            charList.add(randomChar);
+            int randomChar = (random.nextInt(100));
+			if (charList.contains(randomChar)) {
+				i--;
+			}
+			else {
+            	charList.add(randomChar);
+            	charList.add(randomChar);
+			}
         }
 
         // Shuffle the generated characters
@@ -90,7 +94,7 @@ class GameManager {
         int y1 = random.nextInt(slots[0].length);
         int y2 = random.nextInt(slots[0].length);
 
-        char tmp = slots[x1][y1].symbol;
+        int tmp = slots[x1][y1].symbol;
         slots[x1][y1].symbol = slots[x2][y2].symbol;
         slots[x2][y2].symbol = tmp;
     }
@@ -178,7 +182,9 @@ class GameManager {
         for (int i = 0; i < slots.length; i++) {
             System.out.print(i + "  ");
             for (int j = 0; j < slots[i].length; j++) {
-                System.out.print(slots[i][j]);
+				slots[i][j].peek = true;
+				String slotChar = slots[i][j].toString();
+                System.out.print((int) slotChar.charAt(0));
                 if (j < slots[i].length - 1) System.out.print(" | ");
             }
             System.out.println();
@@ -298,7 +304,7 @@ class Shader {
 		if (location != -1) {
 			glUniform1f(location, value);
 		} else {
-			//System.out.println("Uniform " + name + " not found in shader!");
+			System.out.println("Uniform " + name + " not found in shader!");
 		}
 	}
 
@@ -419,7 +425,7 @@ class Window {
 	private long window;
 	
 	public Window() {
-    	gameManager = new GameManager(4, 4, 10, false);
+    	gameManager = new GameManager(10, 2, 10, false);
 	}
 	
 	public void run() {
@@ -439,7 +445,7 @@ class Window {
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 		
 		window = glfwCreateWindow(width, height, 
-		        "Memory Game 2: Pass Time Uniform Example", 0, 0);
+		        "Memory Game 2: My Head Hurts: My Raymarching Adventure: Two Titles is a bit-: Three titles", 0, 0);
 		if (window == NULL) {
 			throw new RuntimeException("Failed to create GLFW window");
 		}
@@ -463,8 +469,14 @@ class Window {
 	}
 	
 	public void loop() {
+
+		// FPS cap
+		int targetFPS = 24;
+		double desiredFrameTime = 1.0 / targetFPS;
+
 		// The rendering loop
 		while (!glfwWindowShouldClose(window)) {
+			double startTime = glfwGetTime();
 			shader.use();
 			
 			// Clear screen
@@ -478,8 +490,8 @@ class Window {
 			shader.setUniform1f("time", time);
 
 			shader.setUniform1f("time", time);
-			shader.setUniform1i("arrayX", gameManager.gameSizeX);
-			shader.setUniform1i("arrayY", gameManager.gameSizeY);
+			shader.setUniform1f("arrayX", gameManager.gameSizeX);
+			shader.setUniform1f("arrayY", gameManager.gameSizeY);
 			int[] ints = new int[gameManager.gameSizeX * gameManager.gameSizeY];
 			ints = gameManager.getCharsAsInts();
 			/*
@@ -498,6 +510,19 @@ class Window {
 			glfwPollEvents();
 			
 			shader.stop();
+
+			// End of frame timing
+			double endTime = glfwGetTime();
+			double frameTime = endTime - startTime;
+
+			// If the frame finished early, sleep the thread
+			if (frameTime < desiredFrameTime) {
+				try {
+					Thread.sleep((long) ((desiredFrameTime - frameTime) * 1000));
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
 		}
 		
 		// Cleanup
