@@ -1,7 +1,7 @@
 package com.raymarchers;
 
 import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL40.*;
+import static org.lwjgl.opengl.GL46C.*;
 import static org.lwjgl.system.MemoryUtil.*;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.BufferUtils;
@@ -425,7 +425,7 @@ class Window {
 	private long window;
 	
 	public Window() {
-    	gameManager = new GameManager(10, 2, 10, false);
+    	gameManager = new GameManager(5, 4, 10, false);
 	}
 	
 	public void run() {
@@ -441,8 +441,8 @@ class Window {
 		
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 		
 		window = glfwCreateWindow(width, height, 
 		        "Memory Game 2: My Head Hurts: My Raymarching Adventure: Two Titles is a bit-: Three titles", 0, 0);
@@ -453,6 +453,7 @@ class Window {
 		glfwMakeContextCurrent(window);
 		GL.createCapabilities();
 		
+
 		shader = new Shader();
 		shader.create();
 		
@@ -466,12 +467,20 @@ class Window {
 		triangle2.create();
 		
 		glfwShowWindow(window);
+
+		System.out.println("Renderer: " + glGetString(GL_RENDERER));
+		System.out.println("Vendor: " + glGetString(GL_VENDOR));
+
+		System.out.println("OpenGL version: " + glGetString(GL_VERSION));
+
+		System.setProperty("org.lwjgl.opengl.Display.allowSoftwareOpenGL", "false");
+
 	}
 	
 	public void loop() {
 
 		// FPS cap
-		int targetFPS = 24;
+		int targetFPS = 1000;
 		double desiredFrameTime = 1.0 / targetFPS;
 
 		// The rendering loop
@@ -499,7 +508,7 @@ class Window {
 				System.out.print(ints[i] + " ");
 			}
 			System.out.println();
-*/
+									*/
 			shader.passChars(ints);
 			
 			// Render two triangles
@@ -514,6 +523,8 @@ class Window {
 			// End of frame timing
 			double endTime = glfwGetTime();
 			double frameTime = endTime - startTime;
+            
+			//System.out.println(frameTime*1000);
 
 			// If the frame finished early, sleep the thread
 			if (frameTime < desiredFrameTime) {
