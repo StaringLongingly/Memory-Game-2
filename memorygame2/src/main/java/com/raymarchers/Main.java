@@ -425,7 +425,7 @@ class Window {
 	private long window;
 	
 	public Window() {
-    	gameManager = new GameManager(4, 4, 10, false);
+    	gameManager = new GameManager(10, 10, 100, false);
 	}
 	
 	public void run() {
@@ -439,7 +439,7 @@ class Window {
 			throw new IllegalStateException("Unable to initialize GLFW");
 		}
 		
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
@@ -480,7 +480,7 @@ class Window {
 	public void loop() {
 
 		// FPS cap
-		int targetFPS = 1000;
+		int targetFPS = 240;
 		double desiredFrameTime = 1.0 / targetFPS;
 
 		// The rendering loop
@@ -524,7 +524,7 @@ class Window {
 			double endTime = glfwGetTime();
 			double frameTime = endTime - startTime;
             
-			//System.out.println(frameTime*1000);
+			System.out.println(frameTime*1000);
 
 			// If the frame finished early, sleep the thread
 			if (frameTime < desiredFrameTime) {

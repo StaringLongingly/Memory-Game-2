@@ -174,16 +174,30 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
     vec3 cubePosition = vec3(0., 0., 1.2);
     vec3 cubeSize = vec3(5., 5., .5);
     result.distance = sdfCube(p - cubePosition, cubeSize);
-    result.color = vec3(0.0314, 0.0314, 0.0314);
+    result.color = vec3(0.0314, 0.0314, 0.314);
     result.reflectivity = .1;
-
-    vec2 res = vec2(p.y,0);
 
     int k = 0;
     //const int randomnessPasses = 3;
     float maxI = arrayX;
     float maxJ = arrayY;
     float size = max(arrayX, arrayY) / 4.;
+    float boxSize = 0;
+
+    switch(int(arrayX)) {
+        case 4:
+        boxSize = 0.8;
+        break;
+        case 8:
+        boxSize = 0.4;
+        break;
+        case 10:
+        boxSize = 0.3;
+        break;
+        default:
+        boxSize = 0.1;
+    }
+    
     
     for (int i = 0 ;i < maxI; i++) {
         for (int j = 0 ;j < maxJ; j++) {
@@ -191,8 +205,8 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
             float y = ((float(i) / (maxI - 1)) * 2.) - 1.; 
             vec3 position = vec3(vec2(x, -y) * 2.0, 0.);
             
-            //this line of code took 3 days of thinking but it implements a dynamic Bounding Volume Hierarchy
-            if((abs(p.x - position.x) <= size) && (abs(p.y - position.y) <= size)){
+            //this line of code took 3 days of thinking but it implements a dynamic Screen Space Bounding Box
+            if((abs(p.x - position.x) <= boxSize) && (abs(p.y - position.y) <= boxSize)){
                     SurfaceInfo newShape;
                     newShape.reflectivity = .3;
                     float r = random(vec2(chars[k]));
