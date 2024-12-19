@@ -425,7 +425,7 @@ class Window {
 	private long window;
 	
 	public Window() {
-    	gameManager = new GameManager(5, 4, 10, false);
+    	gameManager = new GameManager(4, 4, 10, false);
 	}
 	
 	public void run() {
