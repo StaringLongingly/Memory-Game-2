@@ -28,12 +28,12 @@ class Slot {
         this.revealed = false;
     }
 
-    public String toString() {
+    public int getSymbol() {
         if (peek || revealed) {
             peek = false;
-            return Character.toString(symbol);
+            return symbol;
         } else {
-            return "*";
+            return -symbol;
         }
     }
 }
@@ -183,8 +183,8 @@ class GameManager {
             System.out.print(i + "  ");
             for (int j = 0; j < slots[i].length; j++) {
 				slots[i][j].peek = true;
-				String slotChar = slots[i][j].toString();
-                System.out.print((int) slotChar.charAt(0));
+				int slotChar = slots[i][j].getSymbol();
+                System.out.print(slotChar);
                 if (j < slots[i].length - 1) System.out.print(" | ");
             }
             System.out.println();
@@ -196,7 +196,7 @@ class GameManager {
 		int k = 0;
 		for (int i = 0; i < gameSizeY; i++) {
 			for (int j = 0; j < gameSizeX; j++) {
-				result[k] = (int)slots[i][j].symbol;
+				result[k] = slots[i][j].getSymbol();
 				k++;
 			}
 		}
@@ -412,6 +412,7 @@ class Render {
 
 class Window {
 	public GameManager gameManager;
+	private int mouseButtonLastFrame = 0;
 	
 	private int width = 800;
 	private int height = 800;
@@ -425,7 +426,24 @@ class Window {
 	private long window;
 	
 	public Window() {
-    	gameManager = new GameManager(5, 4, 10, false);
+    	gameManager = new GameManager(10, 10, 10, false);
+	}
+
+	public int pollMouse() {
+		int mouseButton = glfwGetMouseButton(window, 0);
+		// If mb1 was pressed this frame
+		if (mouseButton == 1) {
+			if (mouseButtonLastFrame == 0) {
+				mouseButtonLastFrame = mouseButton;
+				return 1;	
+			}
+			else {
+				mouseButtonLastFrame = mouseButton;
+				return 0;
+			}
+		}
+		mouseButtonLastFrame = mouseButton;
+		return 0;
 	}
 	
 	public void run() {
@@ -477,10 +495,14 @@ class Window {
 
 	}
 	
+	private int floorInt(float n) {
+		return Math.round( (float) Math.floor(n));
+	}
+	
 	public void loop() {
 
 		// FPS cap
-		int targetFPS = 1000;
+		int targetFPS = 24;
 		double desiredFrameTime = 1.0 / targetFPS;
 
 		// The rendering loop
@@ -501,16 +523,41 @@ class Window {
 			shader.setUniform1f("time", time);
 			shader.setUniform1f("arrayX", gameManager.gameSizeX);
 			shader.setUniform1f("arrayY", gameManager.gameSizeY);
+
 			int[] ints = new int[gameManager.gameSizeX * gameManager.gameSizeY];
 			ints = gameManager.getCharsAsInts();
-			/*
-			for (int i = 0; i < ints.length; i++) {
-				System.out.print(ints[i] + " ");
-			}
-			System.out.println();
-									*/
 			shader.passChars(ints);
-			
+
+			double[] mouseX, mouseY;
+			float finalMouseX, finalMouseY;
+
+			mouseX = new double[1]; 
+			mouseY = new double[1]; 
+
+			glfwGetCursorPos(window, mouseX, mouseY);
+			finalMouseX = (float) mouseX[0] / (width / 2) - 1;
+			finalMouseY = (float) mouseY[0] / (height / 2) - 1;
+			/*
+			System.out.println("Mouse Coords Raw:");
+			System.out.println("    X:" + mouseX[0]);
+			System.out.println("    Y:" + mouseY[0]);
+
+			System.out.println("Mouse Coords Transformed:");
+			System.out.println("    X:" + finalMouseX);
+			System.out.println("    Y:" + finalMouseY);
+			*/
+
+			shader.setUniform1f("mouseX", finalMouseX);
+			shader.setUniform1f("mouseY", finalMouseY);
+
+			// If mouse1 was clicked this frame
+			if (pollMouse() == 1) {
+				int clickedX = floorInt((finalMouseX + 1.0f) / 2.0f * (float) gameManager.gameSizeX);
+				int clickedY = floorInt((finalMouseY + 1.0f) / 2.0f * (float) gameManager.gameSizeY);
+
+				System.out.println("Clicked Coords: " + clickedX + ", " + clickedY);
+			}
+
 			// Render two triangles
 			Render.render(vaoID, triangle1);
 			Render.render(vaoID, triangle2);

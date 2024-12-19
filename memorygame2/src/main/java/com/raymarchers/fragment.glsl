@@ -6,6 +6,8 @@ uniform float time;
 uniform int[100] chars;
 uniform float arrayX;
 uniform float arrayY;
+uniform float mouseX;
+uniform float mouseY;
 
 // Define a struct to hold surface information
 struct SurfaceInfo {
@@ -159,6 +161,14 @@ SurfaceInfo smoothMinSurface(SurfaceInfo a, SurfaceInfo b, float k) {
     return result;
 }
 
+SurfaceInfo mixSurfaces(SurfaceInfo a, SurfaceInfo b, float t) {
+    SurfaceInfo result;
+    result.distance = mix(a.distance, b.distance, t);
+    result.color = mix(a.color, b.color, t);
+    result.reflectivity = mix(a.reflectivity, b.reflectivity, t);
+    return result;
+}
+
 vec3 hsv2rgb(vec3 c)
 {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -167,15 +177,26 @@ vec3 hsv2rgb(vec3 c)
 }
 
 SurfaceInfo map(vec3 p, int bouncedTimes) {
-    float smoothing = 0.; 
+    float smoothing = 0.1; 
+    float size = max(arrayX, arrayY) / 4.;
 
     // Initialize the result with the plane
-    SurfaceInfo result;
+    SurfaceInfo bgCube;
     vec3 cubePosition = vec3(0., 0., 1.2);
     vec3 cubeSize = vec3(5., 5., .5);
-    result.distance = sdfCube(p - cubePosition, cubeSize);
-    result.color = vec3(0.0314, 0.0314, 0.0314);
-    result.reflectivity = .1;
+    bgCube.distance = sdfCube(p - cubePosition, cubeSize);
+    bgCube.color = vec3(0.0314, 0.0314, 0.0314);
+    bgCube.reflectivity = .1;
+
+    // Add mouse sphere 
+    SurfaceInfo mouseSphere;
+    vec3 mouseSpherePosition = vec3(-mouseX, mouseY, 0) * 3.;
+    mouseSphere.distance = sdfSphere((p + mouseSpherePosition) * size, .3) / size;
+    mouseSphere.color = vec3(1);
+    mouseSphere.reflectivity = 1.;
+    
+    // Smoosh Cube and Sphere
+    SurfaceInfo result = bgCube;
 
     vec2 res = vec2(p.y,0);
 
@@ -183,163 +204,40 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
     //const int randomnessPasses = 3;
     int maxI = int(arrayX);
     int maxJ = int(arrayY);
-    int cntI = maxI;
-    int cntJ = maxJ;
     int i = 0;
     int j = 0;
-    int i1 = 0;
-    int j1 = 0;
-    /*
-    if(p.x <= 0 && p.y > 0){
-        cntI = maxI/2;
-        i = 0;
-        cntJ = maxJ/2;
-        j = 0;
-    }
-    else if(p.x > 0 && p.y > 0){
-        cntI = maxI/2;
-        i = 0;
-        cntJ = maxJ;
-        j = maxJ/2;
 
-       
-    }
-    else if(p.x <= 0 && p.y <= 0){
-        cntI = maxI;
-        i = maxI/2;
-        cntJ = maxJ/2;
-        j = 0;
-
-        
-    }
-    else if(p.x > 0 && p.y <= 0){
-        cntJ = maxJ;
-        cntI = maxI;
-        j = maxJ/2;
-        i = maxI/2;
-    }*/
-    
-
-    for (int i = 0; i < cntI; i++) {
-        for (int j = 0; j < cntJ; j++) {
+    for (int i = 0; i < maxI; i++) {
+        for (int j = 0; j < maxJ; j++) {
             SurfaceInfo newShape;
             newShape.reflectivity = .3;
             float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
             float y = (float(i) / (maxI - 1)) * 2. - 1.; 
-            vec3 position = vec3(vec2(x, -y) * 2, 0.);
+            float posFix = .7;
+            vec3 position = vec3(vec2(x * sqrt(arrayX * posFix), -y * sqrt(arrayY * posFix)), 0.);
+            //this line of code took 3 days of thinking but it implements a dynamic Screen Space Bounding Box
+            if((abs(p.x - position.x) <= size) && (abs(p.y - position.y) <= size)) {
+                float r = random(vec2(chars[k]));
+                vec3 q = p;
+                q -= position;
+                q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
 
-            float r = random(vec2(chars[k]));
-            vec3 q = p;
-            q -= position;
-            q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
+                newShape.distance = randomSDF(q * size , r) / size;
+                vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
+                newShape.color = newColor; 
+                
+                SurfaceInfo obscured;
+                obscured.distance = sdfSphere(q * size, .5) / size;
+                obscured.color = vec3(.9); 
+                obscured.reflectivity = 0.; 
 
-            float size = max(arrayX, arrayY) / 4.;
-            newShape.distance = randomSDF(q * size , r) / size;
-            vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
-            newShape.color = newColor; 
-
-            result = smoothMinSurface(result, newShape, smoothing);
+                result = smoothMinSurface(result, mixSurfaces(obscured, newShape, (sin(time) + 1.) / 2.), smoothing);
+            }
             k++;
         }
     }
 
-    /*if(p.x <= 0 && p.y >= 0){
-        for (int i = 0; i < maxI/2; i++) {
-        for (int j = 0; j < maxJ/2; j++) {
-            SurfaceInfo newShape;
-            newShape.reflectivity = .3;
-            float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
-            float y = (float(i) / (maxI - 1)) * 2. - 1.; 
-            vec3 position = vec3(vec2(x, -y) * 2., 0.);
-
-            float r = random(vec2(chars[k]));
-            vec3 q = p;
-            q -= position;
-            q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
-
-            float size = max(arrayX, arrayY) / 4.;
-            newShape.distance = randomSDF(q * size , r) / size;
-            vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
-            newShape.color = newColor; 
-
-            result = smoothMinSurface(result, newShape, smoothing);
-            k++;
-        }
-        }
-    }
-    else if(p.x > 0 && p.y > 0 ){
-        for (int i = 0; i < maxI/2; i++) {
-        for (int j = maxJ/2; j < maxJ; j++) {
-            SurfaceInfo newShape;
-            newShape.reflectivity = .3;
-            float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
-            float y = (float(i) / (maxI - 1)) * 2. - 1.; 
-            vec3 position = vec3(vec2(x, -y) * 2., 0.);
-
-            float r = random(vec2(chars[k]));
-            vec3 q = p;
-            q -= position;
-            q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
-
-            float size = max(arrayX, arrayY) / 4.;
-            newShape.distance = randomSDF(q * size , r) / size;
-            vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
-            newShape.color = newColor; 
-
-            result = smoothMinSurface(result, newShape, smoothing);
-            k++;
-        }
-        }
-    }
-    else if(p.x < 0 && p.y < 0){
-        for (int i = maxI/2; i < maxI; i++) {
-        for (int j = 0; j < maxJ/2; j++) {
-            SurfaceInfo newShape;
-            newShape.reflectivity = .3;
-            float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
-            float y = (float(i) / (maxI - 1)) * 2. - 1.; 
-            vec3 position = vec3(vec2(x, -y) * 2., 0.);
-
-            float r = random(vec2(chars[k]));
-            vec3 q = p;
-            q -= position;
-            q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
-
-            float size = max(arrayX, arrayY) / 4.;
-            newShape.distance = randomSDF(q * size , r) / size;
-            vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
-            newShape.color = newColor; 
-
-            result = smoothMinSurface(result, newShape, smoothing);
-            k++;
-        }
-        }
-    }
-    else if(p.x > 0 && p.y < 0){
-        for (int i = maxI/2; i < maxI; i++) {
-        for (int j = maxJ/2; j <  maxJ; j++) {
-            SurfaceInfo newShape;
-            newShape.reflectivity = .3;
-            float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
-            float y = (float(i) / (maxI - 1)) * 2. - 1.; 
-            vec3 position = vec3(vec2(x, -y) * 2., 0.);
-
-            float r = random(vec2(chars[k]));
-            vec3 q = p;
-            q -= position;
-            q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
-
-            float size = max(arrayX, arrayY) / 4.;
-            newShape.distance = randomSDF(q * size , r) / size;
-            vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
-            newShape.color = newColor; 
-
-            result = smoothMinSurface(result, newShape, smoothing);
-            k++;
-        }
-        }
-    }*/
-
+    result = smoothMinSurface(result, mouseSphere, .5);
     return result;
 }
 // Function to compute the normal at point p
