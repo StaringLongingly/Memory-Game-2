@@ -3,7 +3,7 @@
 in vec2 fragCord;
 out vec4 color;
 uniform float time;
-uniform int[100] chars;
+uniform float[100] chars;
 uniform float arrayX;
 uniform float arrayY;
 uniform float mouseX;
@@ -217,21 +217,29 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
             vec3 position = vec3(vec2(x * sqrt(arrayX * posFix), -y * sqrt(arrayY * posFix)), 0.);
             //this line of code took 3 days of thinking but it implements a dynamic Screen Space Bounding Box
             if((abs(p.x - position.x) <= size) && (abs(p.y - position.y) <= size)) {
-                float r = random(vec2(chars[k]));
+                int c = int(chars[k]);
+                float r = random(vec2(c));
+                
                 vec3 q = p;
                 q -= position;
                 q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
-
-                newShape.distance = randomSDF(q * size , r) / size;
-                vec3 newColor = hsv2rgb(vec3(float(chars[k]) / 100., .8, .8));
-                newShape.color = newColor; 
                 
                 SurfaceInfo obscured;
-                obscured.distance = sdfSphere(q * size, .5) / size;
-                obscured.color = vec3(.9); 
-                obscured.reflectivity = 0.; 
+                float t = fract(chars[k]) * 2.;
 
-                result = smoothMinSurface(result, mixSurfaces(obscured, newShape, (sin(time) + 1.) / 2.), smoothing);
+                if (t != 0.) {
+                    newShape.distance = randomSDF(q * size , r) / size;
+                    vec3 newColor = hsv2rgb(vec3(float(c) / 100., .8, .8));
+                    newShape.color = newColor; 
+                }
+                
+                if (t != 1.) {
+                    obscured.distance = sdfSphere(q * size, .5) / size;
+                    obscured.color = vec3(.9); 
+                    obscured.reflectivity = 0.; 
+                }
+
+                result = smoothMinSurface(result, mixSurfaces(obscured, newShape, t), smoothing);
             }
             k++;
         }

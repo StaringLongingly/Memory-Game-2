@@ -14,6 +14,7 @@ import java.io.FileNotFoundException;
 // A Slot is a letter with some extra info
 class Slot {
     public int symbol;
+	public float t;
     public boolean peek;
     public boolean revealed;
 
@@ -28,13 +29,16 @@ class Slot {
         this.revealed = false;
     }
 
-    public int getSymbol() {
+    public float getSymbol(float delta) {
+		float delta2 = delta * 100f;
         if (peek || revealed) {
-            peek = false;
-            return symbol;
+			t += delta2;
+			if (t >= 0.5f) t = 0.5f;
         } else {
-            return -symbol;
+			t -= delta2;
+			if (t <= 0.0f) t = 0.0f;
         }
+        return symbol + t;
     }
 }
 
@@ -43,11 +47,22 @@ class GameManager {
     public Slot[][] slots;
 	public int gameSizeX;
 	public int gameSizeY;
+	
+	public int lastPickedX;
+	public int lastPickedY;
+	public int firstPickedX;
+	public int firstPickedY;
+	public int secondPickedX;
+	public int secondPickedY;
 
     public GameManager(int gameSizeX, int gameSizeY, int shuffleCount, boolean reveal) {
         System.out.println("Creating a New Game!");
+
 		this.gameSizeX = gameSizeX;
 		this.gameSizeY = gameSizeY;
+
+		firstPickedX = firstPickedY = secondPickedX = secondPickedY = lastPickedX = lastPickedY = -1;
+
         slots = new Slot[gameSizeY][gameSizeX];
 
         int totalSlots = gameSizeX * gameSizeY;
@@ -99,39 +114,69 @@ class GameManager {
         slots[x2][y2].symbol = tmp;
     }
 
-    public void gameplayLoop() {
-        Scanner in = new Scanner(System.in);
-        int tries = 0;
-        while (!allRevealed()) {
-            printSlotsConsole();
-            tries++;
+	// -1 for invalid, 0 for unmatched, 1 for matched 
+	public int clicked(int clickedX, int clickedY) {
+		int result = -1;
+		boolean firstSelected = firstPickedX != -1 && firstPickedY != -1;
+		boolean secondSelected = secondPickedX != -1 && secondPickedY != -1;
+		
+		// If the first pick was clicked again
+		if (clickedX == firstPickedX && clickedY == firstPickedY && firstSelected) {
+			// Unselect it
+			System.out.println("First Shape Unselected");
+			slots[firstPickedY][firstPickedX].peek = false;
+			firstPickedX = firstPickedY = -1;
+			return -1;
+		}
+		// If a new pick is selected
+		else if (!firstSelected) {
+			System.out.println("First Shape Picked");
+			firstPickedX = clickedX;
+			firstPickedY = clickedY;
+			slots[firstPickedY][firstPickedX].peek = true;
+			if (secondSelected)
+				slots[secondPickedY][secondPickedX].peek = false;
+			secondPickedX = secondPickedY = -1;
+		}
+		// If a new second pick is selected
+		else if (!secondSelected) {
+			System.out.println("Second Shape Selected");
+			secondPickedX = clickedX;
+			secondPickedY = clickedY;
+			// Show the second pick and hide the first one
+			slots[secondPickedY][secondPickedX].peek = true;
+			slots[secondPickedY][secondPickedX].peek = false;
+			lastPickedY = clickedY;
+			lastPickedX = clickedX;
+		}
 
-            int comparison;
-            int x1, x2, y1, y2;
-            do {
-                System.out.print("Give the first row and column: ");
-                x1 = in.nextInt();
-                y1 = in.nextInt();
+		// Update bools for proper testing
+		firstSelected = firstPickedX != -1 && firstPickedY != -1;
+		secondSelected = secondPickedX != -1 && secondPickedY != -1;
+		// If both are selected, test
+		if (firstSelected && secondSelected) {
+			result = compareSlots(firstPickedX, firstPickedY, secondPickedX, secondPickedY);
+		
+			// If it was a match
+			if (result == 1) {
+				slots[firstPickedY][firstPickedX].revealed = true;
+				slots[secondPickedY][secondPickedX].revealed = true;
 
-                System.out.print("Give the second row and column: ");
-                x2 = in.nextInt();
-                y2 = in.nextInt();
+				slots[firstPickedY][firstPickedX].peek = false;
+				slots[secondPickedY][secondPickedX].peek = false;
+			}
+			// If it wasnt
+			else if (result == 0) {
+				slots[firstPickedY][firstPickedX].peek = false;
+				slots[secondPickedY][secondPickedX].peek = true;
+			}
+			
+			// And reset
+			firstPickedX = firstPickedY = -1;
+		}
 
-                comparison = compareSlots(x1, y1, x2, y2);
-            } while (comparison == -1);
-
-            if (comparison == 0) {
-                slots[x1][y1].peek = true;
-                slots[x2][y2].peek = true;
-            } else if (comparison == 1) {
-                slots[x1][y1].revealed = true;
-                slots[x2][y2].revealed = true;
-            }
-        }
-        in.close();
-        System.out.println("Successfully revealed all letters!");
-        System.out.println("It took you " + tries + " tries!");
-    }
+		return result;
+	}
 
     public int compareSlots(int x1, int y1, int x2, int y2) {
         // Check bounds
@@ -143,14 +188,14 @@ class GameManager {
             return -1;
         }
 
-        // Check if same slot chosen twice
+        // Check if same slot chosen twice (Only for Console)
         if (x1 == x2 && y1 == y2) {
             System.out.println("You cannot give the same coordinates for both letters. Try again..");
             return -1;
         }
 
         // Compare symbols
-        if (slots[x1][y1].symbol == slots[x2][y2].symbol) {
+        if (slots[y1][x1].symbol == slots[y2][x2].symbol) {
             System.out.println("Successfully revealed a pair!");
             return 1;
         } else {
@@ -172,7 +217,7 @@ class GameManager {
     }
 
     // Prints and formats all the slots
-    public void printSlotsConsole() {
+    public void printSlotsConsole(float delta) {
         System.out.print("    ");
         for (int j = 0; j < slots[0].length; j++) {
             System.out.print(j + "   ");
@@ -182,8 +227,7 @@ class GameManager {
         for (int i = 0; i < slots.length; i++) {
             System.out.print(i + "  ");
             for (int j = 0; j < slots[i].length; j++) {
-				slots[i][j].peek = true;
-				int slotChar = slots[i][j].getSymbol();
+				float slotChar = slots[i][j].getSymbol(delta);
                 System.out.print(slotChar);
                 if (j < slots[i].length - 1) System.out.print(" | ");
             }
@@ -191,12 +235,12 @@ class GameManager {
         }
     }
 
-	public int[] getCharsAsInts() {
-		int[] result = new int[gameSizeX * gameSizeY];
+	public float[] getCharsAsFloats(float delta) {
+		float[] result = new float[gameSizeX * gameSizeY];
 		int k = 0;
 		for (int i = 0; i < gameSizeY; i++) {
 			for (int j = 0; j < gameSizeX; j++) {
-				result[k] = slots[i][j].getSymbol();
+				result[k] = slots[i][j].getSymbol(delta);
 				k++;
 			}
 		}
@@ -308,10 +352,10 @@ class Shader {
 		}
 	}
 
-	public void passChars(int[] chars) {
+	public void passChars(float[] chars) {
 		int location = glGetUniformLocation(programID, "chars");
 		if (location != -1) {
-			glUniform1iv(location, chars);
+			glUniform1fv(location, chars);
 		} else {
 			//System.out.println("Uniform chars not found in shader!");
 		}
@@ -423,10 +467,11 @@ class Window {
 	private Model triangle2;
 	private Shader shader;
 	
+	private float delta;
 	private long window;
 	
 	public Window() {
-    	gameManager = new GameManager(10, 10, 10, false);
+    	gameManager = new GameManager(4, 4, 10, false);
 	}
 
 	public int pollMouse() {
@@ -448,7 +493,7 @@ class Window {
 	
 	public void run() {
 		init();
-		gameManager.printSlotsConsole();
+		gameManager.printSlotsConsole(0);
 		loop();
 	}
 	
@@ -524,9 +569,9 @@ class Window {
 			shader.setUniform1f("arrayX", gameManager.gameSizeX);
 			shader.setUniform1f("arrayY", gameManager.gameSizeY);
 
-			int[] ints = new int[gameManager.gameSizeX * gameManager.gameSizeY];
-			ints = gameManager.getCharsAsInts();
-			shader.passChars(ints);
+			float[] chars = new float[gameManager.gameSizeX * gameManager.gameSizeY];
+			chars = gameManager.getCharsAsFloats(delta);
+			shader.passChars(chars);
 
 			double[] mouseX, mouseY;
 			float finalMouseX, finalMouseY;
@@ -556,6 +601,8 @@ class Window {
 				int clickedY = floorInt((finalMouseY + 1.0f) / 2.0f * (float) gameManager.gameSizeY);
 
 				System.out.println("Clicked Coords: " + clickedX + ", " + clickedY);
+				if (gameManager.clicked(clickedX, clickedY) == 1)
+					gameManager.printSlotsConsole(delta);
 			}
 
 			// Render two triangles
@@ -574,6 +621,7 @@ class Window {
 			//System.out.println(frameTime*1000);
 
 			// If the frame finished early, sleep the thread
+			delta = (float) frameTime;
 			if (frameTime < desiredFrameTime) {
 				try {
 					Thread.sleep((long) ((desiredFrameTime - frameTime) * 1000));
