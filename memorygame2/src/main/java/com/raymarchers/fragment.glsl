@@ -204,19 +204,20 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
     //const int randomnessPasses = 3;
     int maxI = int(arrayX);
     int maxJ = int(arrayY);
-    int i = 0;
-    int j = 0;
 
     for (int i = 0; i < maxI; i++) {
         for (int j = 0; j < maxJ; j++) {
-            SurfaceInfo newShape;
-            newShape.reflectivity = .3;
             float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
             float y = (float(i) / (maxI - 1)) * 2. - 1.; 
             float posFix = .7;
             vec3 position = vec3(vec2(x * sqrt(arrayX * posFix), -y * sqrt(arrayY * posFix)), 0.);
+
             //this line of code took 3 days of thinking but it implements a dynamic Screen Space Bounding Box
             if((abs(p.x - position.x) <= size) && (abs(p.y - position.y) <= size)) {
+            SurfaceInfo newShape;
+            newShape.reflectivity = .3;
+            
+            
                 float r = random(vec2(chars[k]));
                 vec3 q = p;
                 q -= position;
