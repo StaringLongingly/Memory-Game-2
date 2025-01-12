@@ -618,7 +618,8 @@ public class MG2 {
 		public void run() {
 			System.out.println("Trying to initalize the game window");
 			init();
-			gameManager.printSlotsConsole(0);
+			// Print slots for debugging
+			//gameManager.printSlotsConsole(0);
 			loop();
 		}
 		
