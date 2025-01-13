@@ -1,8 +1,8 @@
 #version 460 core
 
-in vec2 fragCord;
-out vec4 color;
-uniform float time;
+in vec2 fragCord; //pixel coord
+out vec4 color;   //pixel color
+uniform float time; 
 uniform float[100] chars;
 uniform float arrayX;
 uniform float arrayY;
@@ -16,6 +16,7 @@ struct SurfaceInfo {
     float distance;
 };
 
+//SDF functions provided by the master of shaders Inigo Quilez, https://iquilezles.org/
 float sdfSphere(vec3 p, float size) {
     return length(p) - size;
 }
@@ -103,6 +104,7 @@ mat3 rotationMatrix(vec3 axis, float angle) {
     );
 }
 
+//smooth minimum and is used merging effect between SDF's
 float smoothmin(float d1, float d2, float k) {
     float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
     return mix(d2, d1, h) - k * h * (1.0 - h);
@@ -154,13 +156,14 @@ SurfaceInfo smoothMinSurface(SurfaceInfo a, SurfaceInfo b, float k) {
         }
         return result;
     }
-    float h = clamp(0.5 + 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
+    float h = clamp(0.5 + 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);   
     result.distance = mix(b.distance, a.distance, h) - k * h * (1.0 - h);
-    result.color = mix(b.color, a.color, h);
+    result.color = mix(b.color, a.color, h);    //mix is linear interpolation
     result.reflectivity = mix(b.reflectivity, a.reflectivity, h);
     return result;
 }
 
+//linearly interpolating between two SDF's
 SurfaceInfo mixSurfaces(SurfaceInfo a, SurfaceInfo b, float t) {
     SurfaceInfo result;
     result.distance = mix(a.distance, b.distance, t);
@@ -169,6 +172,7 @@ SurfaceInfo mixSurfaces(SurfaceInfo a, SurfaceInfo b, float t) {
     return result;
 }
 
+//colorspace conversion 
 vec3 hsv2rgb(vec3 c)
 {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
@@ -176,6 +180,7 @@ vec3 hsv2rgb(vec3 c)
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
+//defines the scene ie calculates closest surface info, p is the position of the ray
 SurfaceInfo map(vec3 p, int bouncedTimes) {
     float smoothing = 0.1; 
     float size = max(arrayX, arrayY) / 4.;
@@ -198,35 +203,53 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
     // Smoosh Cube and Sphere
     SurfaceInfo result = bgCube;
 
-    vec2 res = vec2(p.y,0);
-
-    int k = 0;
+    int k = 0;  //char array index
     //const int randomnessPasses = 3;
     int maxI = int(arrayX);
     int maxJ = int(arrayY);
     int i = 0;
     int j = 0;
 
+    //defining ideal SSBB(Screen Space Bounding Boxes) size manually
+    float boxSize = 0;
+
+    switch(int(arrayX)) {
+        case 4:
+        boxSize = 0.8;
+        break;
+        case 8:
+        boxSize = 0.4;
+        break;
+        case 10:
+        boxSize = 0.3;
+        break;
+        default:
+        boxSize = 0.8;
+    }
+
+    //algorytmically defining the grid of SDF's
     for (int i = 0; i < maxI; i++) {
         for (int j = 0; j < maxJ; j++) {
             SurfaceInfo newShape;
             newShape.reflectivity = .3;
-            float x = (float(j) / (maxJ - 1)) * 2. - 1.; 
+            float x = (float(j) / (maxJ - 1)) * 2. - 1.; //position calculations
             float y = (float(i) / (maxI - 1)) * 2. - 1.; 
-            float posFix = .7;
+            float posFix = .7;  //magic number
             vec3 position = vec3(vec2(x * sqrt(arrayX * posFix), -y * sqrt(arrayY * posFix)), 0.);
-            //this line of code took 3 days of thinking but it implements a dynamic Screen Space Bounding Box
-            if((abs(p.x - position.x) <= size) && (abs(p.y - position.y) <= size)) {
+
+            //generating SSBB(Screen Space Bounding Boxes) to avoid most intersection tests the primary bottleneck to performance, improves perfrormance by ~4-5x
+            if((abs(p.x - position.x) <= boxSize) && (abs(p.y - position.y) <= boxSize)) {
                 int c = int(chars[k]);
-                float r = random(vec2(c));
+                float r = random(vec2(c));      //seeding random with encoded char array so pairs will be the same
                 
-                vec3 q = p;
+                vec3 q = p;     //rotation
                 q -= position;
-                q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));
+                q *= rotationMatrix(sampleHemisphereCosine(vec3(1.0, 0.0, 0.0), vec2(r)), time * (r * 2. + .5));    
                 
                 SurfaceInfo obscured;
-                float t = fract(chars[k]) * 2.;
+                float t = fract(chars[k]) * 2.; //extracting t from the encoded char array(, the interpolation factor)
 
+                //obfuscation calculation
                 if (t != 0.) {
                     newShape.distance = randomSDF(q * size , r) / size;
                     vec3 newColor = hsv2rgb(vec3(float(c) / 100., .8, .8));
@@ -248,6 +271,7 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
     result = smoothMinSurface(result, mouseSphere, .5);
     return result;
 }
+
 // Function to compute the normal at point p
 vec3 computeNormal(vec3 p) {
     const float eps = 0.0001;
@@ -258,7 +282,9 @@ vec3 computeNormal(vec3 p) {
 }
 
 void main() {
-    vec2 uv = fragCord;
+    vec2 uv = fragCord;     //pixel coordinate conventionally called the uv
+
+    //interlacing looks asthetically pleasing and saves perf as a bonus
     const int scale = 200;
     bool vertical = fract(uv.y * float(scale)) > .5;
     bool horizontal = fract(uv.x * float(scale)) > .5;
@@ -267,8 +293,8 @@ void main() {
         return;
     }
 
-    vec3 ro = vec3(0.0, 0.0, -3.0);
-    vec3 rd = normalize(vec3(uv, 1.0));
+    vec3 ro = vec3(0.0, 0.0, -3.0); //ray origin
+    vec3 rd = normalize(vec3(uv, 1.0)); //ray direction
     vec3 accumulatedColor = vec3(0.0);
     float attenuation = 1.0;
 

@@ -98,6 +98,7 @@ class Slot {
     public boolean peek;
     public boolean revealed;
 
+	//constructors
     public Slot(int symbol) {
         this.symbol = symbol;
         this.peek = false;
@@ -110,12 +111,12 @@ class Slot {
     }
 
     public float getSymbol(float delta) {
-		float delta2 = delta * 100f;
-		if (cooldown >= 0f) {
+		float delta2 = delta * 100f;	//scaling of time between two frames
+		if (cooldown >= 0f) {	//cooldown so the shapes get unrevealed with a delay
 			cooldown -= delta2;
 			t = 0.5f;
 		} else {
-			if (peek || revealed) {
+			if (peek || revealed) {		//incrimeting the interpolation value
 				t += delta2;
 				if (t >= 0.5f) t = 0.5f;
 			} else {
@@ -123,21 +124,22 @@ class Slot {
 				if (t <= 0.0f) t = 0.0f;
 			}
 		}
-        return symbol + t;
+
+        return symbol + t;	//symbols are encoded as a float so t and the symbol is passed to the fragment shader in a single array
     }
 }
 
-// Handles initialization and gameplay
+// Handles gameplay logic
 class GameManager {
     public Slot[][] slots;
 	public String playerName;
 
-	public int gameSizeX;
+	public int gameSizeX; 
 	public int gameSizeY;
 
-	public int tries;
-	public int currentTries;
-	public int maxTries;
+	public int tries; 	//all tries used for logging the leaderboard
+	public int currentTries;	// consecutive failed attempts used for failing logic
+	public int maxTries;	
 	
 	public int lastPickedX;
 	public int lastPickedY;
@@ -165,6 +167,7 @@ class GameManager {
         int totalSlots = gameSizeX * gameSizeY;
         int pairCount = totalSlots / 2;
 
+		//generating integer pairs with no repeats
         List<Integer> charList = new ArrayList<Integer>();
         Random random = new Random();
         for (int i = 0; i < pairCount; i++) {
@@ -181,18 +184,19 @@ class GameManager {
         // Shuffle the generated characters
         Collections.shuffle(charList, random);
 
+
         // Fill the slots
         int index = 0;
         for (int i = 0; i < slots.length; i++) {
             for (int j = 0; j < slots[i].length; j++) {
                 slots[i][j] = new Slot(charList.get(index));
                 slots[i][j].revealed = reveal;
-                slots[i][j].cooldown = 0.5f;
+                slots[i][j].cooldown = 0.5f;	//slots are initialized as revealed so the player gets a peek at the beginning of the game
                 index++;
             }
         }
-
-        // Additional shuffling if needed
+		
+		// Additional shuffling if needed
         for (int i = 0; i < shuffleCount; i++) {
             shuffle();
         }
@@ -215,7 +219,7 @@ class GameManager {
 	// -1 for invalid, 0 for unmatched, 1 for matched 
 	public int clicked(int clickedX, int clickedY) {
 		int result = -1;
-		boolean firstSelected = firstPickedX != -1 && firstPickedY != -1;
+		boolean firstSelected = firstPickedX != -1 && firstPickedY != -1; 	
 		boolean secondSelected = secondPickedX != -1 && secondPickedY != -1;
 		
 		// If the first pick was clicked again
@@ -228,7 +232,7 @@ class GameManager {
 		}
 		// If a new pick is selected
 		else if (!firstSelected) {
-			System.out.println("First Shape Picked");
+			System.out.println("First Shape Picked");	//debug
 			firstPickedX = clickedX;
 			firstPickedY = clickedY;
 			slots[firstPickedY][firstPickedX].peek = true;
@@ -336,6 +340,7 @@ class GameManager {
         }
     }
 
+	//encoding the slots for passing to the fragment shader
 	public float[] getCharsAsFloats(float delta) {
 		float[] result = new float[gameSizeX * gameSizeY];
 		int k = 0;
@@ -349,6 +354,7 @@ class GameManager {
 	}
 }
 
+//generic shader class provided by "" 
 class Shader {
 	private String vertexFile = "vertex.glsl";
 	private String fragmentFile = "fragment.glsl";
@@ -459,14 +465,15 @@ class Shader {
 	}
 }
 
+//generic model class provided by "" and modified
 class Model {
 	private float[] vertexArray;
 	private int[] indices;
 	
 	private int vboID, iboID;
 	
+	//scale is added to flip the triangle since we olny need to render a quad(a square consisting of two triangles) for ray marching 
 	public Model(float scale) {
-		// Added simple color attribute, but it's static in this example
 		vertexArray = new float[] {
 			-1 * scale, 1 * scale, 0 * scale, 1, 1, 1, 1.0f,
 			-1 * scale, -1 * scale, 0 * scale, 1, 1, 1, 1.0f,
@@ -529,6 +536,7 @@ class Model {
 
 }
 
+// generic render class provided by ""
 class Render {
 	public static void render(int vaoID, Model triangle) {
 		glBindVertexArray(vaoID);
@@ -551,6 +559,7 @@ class Render {
 
 }
 
+//main game class
 public class MG2 {
 	private static String size;
 	private static String playerName;
@@ -563,24 +572,26 @@ public class MG2 {
 		playerName = name;	
 	}
 
+	//generic window class provided by "" and modified
 	private static class Window {
 		public GameManager gameManager;
-		private int mouseButtonLastFrame = 0;
-		public double currentLogCooldown = 0f;
+		private int mouseButtonLastFrame = 0; //if mouse clicked last frame 
+		public double currentLogCooldown = 0f; //for logging frame times ect
 		public double logCooldown = 0.5f;
 		
-		private int width = 800;
+		private int width = 800; //window size in pixels
 		private int height = 800;
 		
 		private int vaoID;
 		
-		private Model triangle1;
+		private Model triangle1;	//the quad triangles
 		private Model triangle2;
 		private Shader shader;
 		
-		private float delta;
+		private float delta;	//time between frames
 		private long window;
 		
+		//constructor and game initilization
 		public Window() {
 			int sizeInt = 5;
 			switch (size) {
@@ -597,10 +608,9 @@ public class MG2 {
 			gameManager = new GameManager(sizeInt, sizeInt, 4, 10, false);
 		}
 
-
 		public int pollMouse() {
-			int mouseButton = glfwGetMouseButton(window, 0);
-			// If mb1 was pressed this frame
+			int mouseButton = glfwGetMouseButton(window, 0);	// If mb1 was pressed this frame
+
 			if (mouseButton == 1) {
 				if (mouseButtonLastFrame == 0) {
 					mouseButtonLastFrame = mouseButton;
@@ -615,6 +625,7 @@ public class MG2 {
 			return 0;
 		}
 		
+		//initializing window
 		public void run() {
 			System.out.println("Trying to initalize the game window");
 			init();
@@ -623,6 +634,7 @@ public class MG2 {
 			loop();
 		}
 		
+		//initializing rendering
 		public void init() {
 			if (!glfwInit()) {
 				throw new IllegalStateException("Unable to initialize GLFW");
@@ -649,7 +661,7 @@ public class MG2 {
 			vaoID = glGenVertexArrays();
 			glBindVertexArray(vaoID);
 			
-			// Create two models with different scales
+			// Create two models with different scales to render our quad
 			triangle1 = new Model(1f);
 			triangle1.create();
 			triangle2 = new Model(-1f);
@@ -657,12 +669,13 @@ public class MG2 {
 			
 			glfwShowWindow(window);
 
+			//debug info about various openGL stuff
 			System.out.println("Renderer: " + glGetString(GL_RENDERER));
 			System.out.println("Vendor: " + glGetString(GL_VENDOR));
 
 			System.out.println("OpenGL version: " + glGetString(GL_VERSION));
 
-			System.setProperty("org.lwjgl.opengl.Display.allowSoftwareOpenGL", "false");
+			System.setProperty("org.lwjgl.opengl.Display.allowSoftwareOpenGL", "false");	//Software rendering(with the CPU) is not good so it's not allowed
 
 		}
 		
@@ -670,6 +683,7 @@ public class MG2 {
 			return Math.round( (float) Math.floor(n));
 		}
 
+		//writing to the leaderboard
 		public void saveScore(boolean win) {
 			try (FileWriter writer = new FileWriter("leaderboard.txt", true)) {
 				ZonedDateTime currentDate = ZonedDateTime.now();
@@ -686,10 +700,11 @@ public class MG2 {
 			}
 		}
 		
+		//rendering loop
 		public void loop() {
 
 			// FPS cap
-			int targetFPS = 24;
+			int targetFPS = 24;	
 			double desiredFrameTime = 1.0 / targetFPS;
 
 			// The rendering loop
@@ -706,25 +721,27 @@ public class MG2 {
 				
 				// Pass the time uniform to the shader
 				shader.setUniform1f("time", time);
-
-				shader.setUniform1f("time", time);
+				//passing game size to the shader
 				shader.setUniform1f("arrayX", gameManager.gameSizeX);
 				shader.setUniform1f("arrayY", gameManager.gameSizeY);
 
+				//encoding and passing chhars to the shader
 				float[] chars = new float[gameManager.gameSizeX * gameManager.gameSizeY];
 				chars = gameManager.getCharsAsFloats(delta);
 				shader.passChars(chars);
 
+				//getting mouse data
 				double[] mouseX, mouseY;
 				float finalMouseX, finalMouseY;
 
+				//they have to be in this format for being passed to the shader
 				mouseX = new double[1]; 
 				mouseY = new double[1]; 
 
 				glfwGetCursorPos(window, mouseX, mouseY);
 				finalMouseX = (float) mouseX[0] / (width / 2) - 1;
 				finalMouseY = (float) mouseY[0] / (height / 2) - 1;
-				/*
+				/* debug for mouse coords
 				System.out.println("Mouse Coords Raw:");
 				System.out.println("    X:" + mouseX[0]);
 				System.out.println("    Y:" + mouseY[0]);
@@ -734,15 +751,18 @@ public class MG2 {
 				System.out.println("    Y:" + finalMouseY);
 				*/
 
+				//passing mouse cords to the shader
 				shader.setUniform1f("mouseX", finalMouseX);
 				shader.setUniform1f("mouseY", finalMouseY);
 
-				// If mouse1 was clicked this frame
+				// if mouse1 was clicked this frame
 				if (pollMouse() == 1) {
+					//screenspace tecnique for determining slot clicked
 					int clickedX = floorInt((finalMouseX + 1.0f) / 2.0f * (float) gameManager.gameSizeX);
 					int clickedY = floorInt((finalMouseY + 1.0f) / 2.0f * (float) gameManager.gameSizeY);
 
-					System.out.println("Clicked Coords: " + clickedX + ", " + clickedY);
+					//debug for mouse coords
+					//System.out.println("Clicked Coords: " + clickedX + ", " + clickedY);
 					int clickedResult = gameManager.clicked(clickedX, clickedY);
 					if (clickedResult == 1) {
 						gameManager.currentTries = 0;
@@ -763,7 +783,7 @@ public class MG2 {
 					}
 				}
 
-				// Render two triangles
+				// Render a quad(two tris)
 				Render.render(vaoID, triangle1);
 				Render.render(vaoID, triangle2);
 				
@@ -785,7 +805,7 @@ public class MG2 {
 				
 				//System.out.println(frameTime*1000);
 
-				// If the frame finished early, sleep the thread
+				// If the frame finished early, sleep the thread to cap frame rate 
 				delta = (float) frameTime;
 				if (frameTime < desiredFrameTime) {
 					try {
@@ -807,6 +827,7 @@ public class MG2 {
 
 	}
 
+	//GUI class
 	public static class SelectionWindow extends Application {
 		public String selectedSize;
 		public String playerName;
