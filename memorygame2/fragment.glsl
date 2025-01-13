@@ -16,7 +16,7 @@ struct SurfaceInfo {
     float distance;
 };
 
-//SDF functions provided by the master of shaders Inigo Quilez, https://iquilezles.org/
+//SDF(Signed Distance Field) functions provided by the master of shaders Inigo Quilez, https://iquilezles.org/
 float sdfSphere(vec3 p, float size) {
     return length(p) - size;
 }

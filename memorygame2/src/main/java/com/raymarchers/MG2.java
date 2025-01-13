@@ -93,7 +93,7 @@ import javafx.stage.Stage;
 // A Slot is a letter with some extra info
 class Slot {
     public int symbol;
-	public float t;
+	public float t; 	//interpolation value
 	public float cooldown;
     public boolean peek;
     public boolean revealed;
@@ -354,7 +354,7 @@ class GameManager {
 	}
 }
 
-//generic shader class provided by "" 
+//generic shader class provided by "https://github.com/Large0range/OpenGL-Tutorial" and modified
 class Shader {
 	private String vertexFile = "vertex.glsl";
 	private String fragmentFile = "fragment.glsl";
@@ -465,7 +465,7 @@ class Shader {
 	}
 }
 
-//generic model class provided by "" and modified
+//generic model class provided by "https://github.com/Large0range/OpenGL-Tutorial" and modified
 class Model {
 	private float[] vertexArray;
 	private int[] indices;
@@ -536,7 +536,7 @@ class Model {
 
 }
 
-// generic render class provided by ""
+// generic render class provided by "https://github.com/Large0range/OpenGL-Tutorial"
 class Render {
 	public static void render(int vaoID, Model triangle) {
 		glBindVertexArray(vaoID);
@@ -572,7 +572,7 @@ public class MG2 {
 		playerName = name;	
 	}
 
-	//generic window class provided by "" and modified
+	//generic window class provided by "https://github.com/Large0range/OpenGL-Tutorial" and modified
 	private static class Window {
 		public GameManager gameManager;
 		private int mouseButtonLastFrame = 0; //if mouse clicked last frame 
