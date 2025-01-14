@@ -85,6 +85,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -93,7 +94,7 @@ import javafx.stage.Stage;
 // A Slot is a letter with some extra info
 class Slot {
     public int symbol;
-	public float t; 	//interpolation value
+	public float t; 	// Value used for animations
 	public float cooldown;
     public boolean peek;
     public boolean revealed;
@@ -110,13 +111,14 @@ class Slot {
         this.revealed = false;
     }
 
+	// Returns the symbol as an int ant the t used in animations as the fractional part between 0-0.5
     public float getSymbol(float delta) {
-		float delta2 = delta * 100f;	//scaling of time between two frames
-		if (cooldown >= 0f) {	//cooldown so the shapes get unrevealed with a delay
+		float delta2 = delta * 100f;	// Scaling of time between two frames
+		if (cooldown >= 0f) {	// Cooldown so the shapes get unrevealed with a delay
 			cooldown -= delta2;
 			t = 0.5f;
 		} else {
-			if (peek || revealed) {		//incrimeting the interpolation value
+			if (peek || revealed) {		
 				t += delta2;
 				if (t >= 0.5f) t = 0.5f;
 			} else {
@@ -125,7 +127,7 @@ class Slot {
 			}
 		}
 
-        return symbol + t;	//symbols are encoded as a float so t and the symbol is passed to the fragment shader in a single array
+        return symbol + t;	 
     }
 }
 
@@ -137,8 +139,8 @@ class GameManager {
 	public int gameSizeX; 
 	public int gameSizeY;
 
-	public int tries; 	//all tries used for logging the leaderboard
-	public int currentTries;	// consecutive failed attempts used for failing logic
+	public int tries; 	// Total number of tries for leaderboard logging 
+	public int currentTries;	// Consecutive failed attempts for failing logic
 	public int maxTries;	
 	
 	public int lastPickedX;
@@ -167,7 +169,7 @@ class GameManager {
         int totalSlots = gameSizeX * gameSizeY;
         int pairCount = totalSlots / 2;
 
-		//generating integer pairs with no repeats
+		// Nonrepeating Integer Pair Generation
         List<Integer> charList = new ArrayList<Integer>();
         Random random = new Random();
         for (int i = 0; i < pairCount; i++) {
@@ -191,7 +193,7 @@ class GameManager {
             for (int j = 0; j < slots[i].length; j++) {
                 slots[i][j] = new Slot(charList.get(index));
                 slots[i][j].revealed = reveal;
-                slots[i][j].cooldown = 0.5f;	//slots are initialized as revealed so the player gets a peek at the beginning of the game
+                slots[i][j].cooldown = 0.5f;	// Slots are initialized as revealed so the player gets a peek at the beginning of the game
                 index++;
             }
         }
@@ -340,7 +342,7 @@ class GameManager {
         }
     }
 
-	//encoding the slots for passing to the fragment shader
+	// encoding the slots for passing to the fragment shader
 	public float[] getCharsAsFloats(float delta) {
 		float[] result = new float[gameSizeX * gameSizeY];
 		int k = 0;
@@ -354,7 +356,7 @@ class GameManager {
 	}
 }
 
-//generic shader class provided by "https://github.com/Large0range/OpenGL-Tutorial" and modified
+// generic shader class provided by "https://github.com/Large0range/OpenGL-Tutorial" and modified
 class Shader {
 	private String vertexFile = "vertex.glsl";
 	private String fragmentFile = "fragment.glsl";
@@ -368,8 +370,8 @@ class Shader {
 		this.fragmentFile = fragmentFile;
 	}
 	
-	// Reads a file from resources
-	private String readFile(String fileName) {
+	// Converts a file into a string 
+	public static String readFile(String fileName) {
 		Path path = Paths.get(fileName);
 		String content = "";
 		try {
@@ -854,6 +856,20 @@ public class MG2 {
 				primaryStage.close();  // Close the window
 			});
 
+			// Create About button
+			Button aboutButton = new Button("About");
+			aboutButton.setOnAction(event -> openAboutPage());
+
+			// Create Leaderboard button
+			Button leaderboardButton = new Button("Leaderboards");
+			leaderboardButton.setOnAction(event -> openLeaderboardPage());
+
+			// Arrange the About and Leaderboard horizontally
+			HBox extrasLayout = new HBox(10);
+			extrasLayout.getChildren().addAll(aboutButton, leaderboardButton);
+			extrasLayout.setAlignment(Pos.CENTER);
+
+
 			// Arrange the ChoiceBox and Button horizontally
 			HBox sizeSelectionLayout = new HBox(10);
 			sizeSelectionLayout.getChildren().addAll(choiceBox, confirmButton);
@@ -861,16 +877,53 @@ public class MG2 {
 
 			// Arrange all elements in a vertical layout
 			VBox layout = new VBox(10);
-			layout.getChildren().addAll(textField, sizeSelectionLayout);
+			layout.getChildren().addAll(textField, extrasLayout, sizeSelectionLayout);
 			layout.setAlignment(Pos.CENTER);
 
 			// Set up the scene and show the stage
-			Scene scene = new Scene(layout, 165, 70); // Adjusted size for better spacing
+			Scene scene = new Scene(layout, 165, 100); // Adjusted size for better spacing
 			primaryStage.setScene(scene);
 			primaryStage.setTitle("");
 			primaryStage.show();
 		}
 
+		private void openAboutPage() {
+			Stage aboutStage = new Stage();
+			aboutStage.setTitle("About MG2");
+
+			Label aboutLabel = new Label(
+				"A needlessly overengineered memory game.\n" +
+				"Made with love by @StaringLongingly + @RayVa0\n" +
+				"© 2024-2025 GPLv3\n"
+			);
+			aboutLabel.setWrapText(true);
+
+			VBox layout = new VBox(10);
+			layout.getChildren().add(aboutLabel);
+			layout.setAlignment(Pos.CENTER);
+
+			Scene scene = new Scene(layout, 300, 80);
+			aboutStage.setScene(scene);
+			aboutStage.show();
+		}
+
+		private void openLeaderboardPage() {
+			Stage leaderboardStage = new Stage();
+			leaderboardStage.setTitle("Leaderboards!!!");
+
+			Label leaderboardLabel = new Label(
+				Shader.readFile("leaderboard.txt")
+			);
+			leaderboardLabel.setWrapText(true);
+
+			VBox layout = new VBox(10);
+			layout.getChildren().add(leaderboardLabel);
+			layout.setAlignment(Pos.CENTER);
+
+			Scene scene = new Scene(layout, 600, 300);
+			leaderboardStage.setScene(scene);
+			leaderboardStage.show();
+		}
 
 		@Override
         public void stop() {
