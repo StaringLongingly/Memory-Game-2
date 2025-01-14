@@ -91,6 +91,14 @@ float randomSDF(vec3 p, float seed) {
     if (seed == 3) { return sdfHorseshoe(p, vec2(cos(1.3),sin(1.3)), 0.35, 0.3, vec2(0.1,0.08) ); }
 }
 
+float jokerSDF(vec3 p) {
+    p.x -= .3;
+    float horseShoe = sdfHorseshoe(p, vec2(cos(1.3),sin(1.3)), 0.35, 0.3, vec2(0.1,0.08) );
+    float cube = sdfCube(p - vec3(2., 0., 0.), vec3(2., 2., 2.));
+    // Subtract the sdfs
+    return max(horseShoe, -cube);
+}
+
 mat3 rotationMatrix(vec3 axis, float angle) {
     axis = normalize(axis);
     float s = sin(angle);
@@ -239,7 +247,7 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
 
             //generating SSBB(Screen Space Bounding Boxes) to avoid most intersection tests the primary bottleneck to performance, improves perfrormance by ~4-5x
             if((abs(p.x - position.x) <= boxSize) && (abs(p.y - position.y) <= boxSize)) {
-                int c = int(chars[k]);
+                int c = int(chars[k]) - 1;
                 float r = random(vec2(c));      //seeding random with encoded char array so pairs will be the same
                 
                 vec3 q = p;     //rotation
@@ -251,9 +259,14 @@ SurfaceInfo map(vec3 p, int bouncedTimes) {
 
                 //obfuscation calculation
                 if (t != 0.) {
-                    newShape.distance = randomSDF(q * size , r) / size;
-                    vec3 newColor = hsv2rgb(vec3(float(c) / 100., .8, .8));
-                    newShape.color = newColor; 
+                    if (c == -1) {
+                        newShape.distance = jokerSDF(q * size) / size;
+                        newShape.color = vec3(1.);
+                    }
+                    else {
+                        newShape.distance = randomSDF(q * size, r) / size;
+                        newShape.color = hsv2rgb(vec3(float(c) / 100., .8, .8));
+                    }
                 }
                 
                 if (t != 1.) {

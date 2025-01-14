@@ -73,6 +73,7 @@ import java.nio.file.Paths;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -93,7 +94,7 @@ import javafx.stage.Stage;
 
 // A Slot is a letter with some extra info
 class Slot {
-    public int symbol;
+    public int symbol; // Used to identify the slot, -1 for a joker
 	public float t; 	// Value used for animations
 	public float cooldown;
     public boolean peek;
@@ -172,7 +173,13 @@ class GameManager {
 		// Nonrepeating Integer Pair Generation
         List<Integer> charList = new ArrayList<Integer>();
         Random random = new Random();
-        for (int i = 0; i < pairCount; i++) {
+
+		// Add the jokers
+        charList.add(-1);
+        charList.add(-1);
+
+		// Paircount-1 cause of the jokers
+        for (int i = 0; i < pairCount - 1; i++) {
             int randomChar = (random.nextInt(100));
 			if (charList.contains(randomChar)) {
 				i--;
@@ -185,7 +192,6 @@ class GameManager {
 
         // Shuffle the generated characters
         Collections.shuffle(charList, random);
-
 
         // Fill the slots
         int index = 0;
@@ -301,8 +307,30 @@ class GameManager {
             return -1;
         }
 
+		// Check if one of the chosen slots is already revealed
+		if (slots[y1][x1].revealed == true || slots[y2][x2].revealed == true) {
+			System.out.println("One of the chosen slots was already revealed. Try again..");
+			return -1;
+		} 
+
         // Compare symbols
-        if (slots[y1][x1].symbol == slots[y2][x2].symbol) {
+        if (slots[y1][x1].symbol == slots[y2][x2].symbol || slots[y1][x1].symbol == -1|| slots[y2][x2].symbol == -1) {
+			// If the first selected was a joker find the matching pair of the second selected
+			if (slots[y1][x1].symbol == -1)	Arrays.stream(slots).forEach(row -> {
+				Arrays.stream(row).forEach(slot -> {
+					if (slot.symbol == slots[y2][x2].symbol) {
+						slot.revealed = true;
+					}
+				});
+			});
+			// If the second selected was a joker ...
+			if (slots[y2][x2].symbol == -1)	Arrays.stream(slots).forEach(row -> {
+				Arrays.stream(row).forEach(slot -> {
+					if (slot.symbol == slots[y1][x1].symbol) {
+						slot.revealed = true;
+					}
+				});
+			});
             System.out.println("Successfully revealed a pair!");
             return 1;
         } else {
